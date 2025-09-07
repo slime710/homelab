@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minecraft
+  namespace: mc-dev
+  labels: { app: minecraft }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: minecraft }
+  template:
+    metadata:
+      labels: { app: minecraft }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 2000
+      containers:
+        - name: server
+          image: ghcr.io/itzg/minecraft-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: mc
+              containerPort: 25565
+              protocol: TCP
+          env:
+            - name: EULA
+              valueFrom:
+                configMapKeyRef: { name: mc-config, key: EULA }
+            - name: TYPE
+              valueFrom:
+                configMapKeyRef: { name: mc-config, key: TYPE }
+            - name: VERSION
+              valueFrom:
+                configMapKeyRef: { name: mc-config, key: VERSION }
+            - name: MEMORY
+              valueFrom:
+                configMapKeyRef: { name: mc-config, key: MEMORY }
+            - name: MOTD
+              valueFrom:
+                configMapKeyRef: { name: mc-config, key: MOTD }
+            - name: ENABLE_WHITELIST
+              value: "FALSE"
+          volumeMounts:
+            - name: world
+              mountPath: /data
+          readinessProbe:
+            tcpSocket: { port: 25565 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 25565 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+      volumes:
+        - name: world
+          persistentVolumeClaim: { claimName: mc-world }

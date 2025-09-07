@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: minecraft
+  namespace: mc-dev
+  labels: { app: minecraft }
+spec:
+  type: LoadBalancer
+  ports:
+    - name: mc
+      port: 25565
+      targetPort: 25565
+      protocol: TCP
+  selector: { app: minecraft }

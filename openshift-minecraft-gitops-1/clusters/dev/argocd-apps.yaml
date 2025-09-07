@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: mc-dev
+  namespace: openshift-gitops
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/openshift-minecraft-gitops
+    targetRevision: main
+    path: apps/minecraft/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: mc-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

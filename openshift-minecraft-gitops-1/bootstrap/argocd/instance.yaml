@@ -1,0 +1,11 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ArgoCD
+metadata:
+  name: cluster
+  namespace: openshift-gitops
+spec:
+  server:
+    route:
+      enabled: true
+  resourceTrackingMethod: annotation
+  kustomizeBuildOptions: "--enable-helm"

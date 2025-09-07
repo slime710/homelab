@@ -1,0 +1,78 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: git-binding
+  namespace: ci
+spec:
+  params:
+    - name: repo-url
+      value: $(body.repository.clone_url)
+    - name: revision
+      value: $(body.ref)
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: pipeline-template
+  namespace: ci
+spec:
+  params:
+    - name: repo-url
+    - name: revision
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: mc-build-
+        namespace: ci
+      spec:
+        pipelineRef:
+          name: build-and-update-minecraft
+        serviceAccountName: pipeline
+        workspaces:
+          - name: shared
+            volumeClaimTemplate:
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                resources:
+                  requests:
+                    storage: 1Gi
+          - name: git-credentials
+            emptyDir: {}
+        params:
+          - name: repo-url
+            value: $(tt.params.repo-url)
+          - name: revision
+            value: $(tt.params.revision)
+          - name: image-url
+            value: image-registry.openshift-image-registry.svc:5000/ci/minecraft:latest
+          - name: context
+            value: .
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: git-listener
+  namespace: ci
+spec:
+  serviceAccountName: pipeline
+  triggers:
+    - name: on-push
+      bindings:
+        - ref: git-binding
+      template:
+        ref: pipeline-template
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: git-listener
+  namespace: ci
+spec:
+  to:
+    kind: Service
+    name: el-git-listener
+  port:
+    targetPort: http-listener
+  tls:
+    termination: edge

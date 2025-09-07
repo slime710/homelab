@@ -1,0 +1,108 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: build-and-update-minecraft
+  namespace: ci
+spec:
+  params:
+    - name: repo-url
+      type: string
+    - name: revision
+      type: string
+      default: main
+    - name: image-url
+      type: string
+      description: Image URL incl. registry/project/name
+    - name: context
+      type: string
+      default: .
+  workspaces:
+    - name: shared
+    - name: git-credentials
+  tasks:
+    - name: fetch-repo
+      taskRef:
+        name: git-clone
+        kind: ClusterTask
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+        - name: deleteExisting
+          value: "true"
+      workspaces:
+        - name: output
+          workspace: shared
+    - name: build-image
+      runAfter: [fetch-repo]
+      taskRef:
+        name: buildah
+        kind: ClusterTask
+      params:
+        - name: IMAGE
+          value: $(params.image-url)
+        - name: CONTEXT
+          value: $(params.context)
+        - name: FORMAT
+          value: oci
+      workspaces:
+        - name: source
+          workspace: shared
+    - name: update-kustomize-tag
+      runAfter: [build-image]
+      taskSpec:
+        workspaces:
+          - name: ws
+        params:
+          - name: image
+            type: string
+          - name: path
+            type: string
+        steps:
+          - name: set-tag
+            image: registry.access.redhat.com/ubi9/ubi-minimal
+            script: |
+              set -euo pipefail
+              cd $(workspaces.ws.path)
+              sed -i 's#\(name: ghcr.io/itzg/minecraft-server\)$#\1\n    newTag: latest#' apps/minecraft/base/kustomization.yaml
+              echo "Updated kustomize image tag"
+      params:
+        - name: image
+          value: $(params.image-url)
+        - name: path
+          value: .
+      workspaces:
+        - name: ws
+          workspace: shared
+    - name: commit-and-push
+      runAfter: [update-kustomize-tag]
+      taskSpec:
+        workspaces:
+          - name: ws
+          - name: creds
+        params:
+          - name: git_user_name
+            default: CI Bot
+          - name: git_user_email
+            default: ci@example.com
+        steps:
+          - name: commit
+            image: registry.access.redhat.com/ubi9/ubi-git
+            script: |
+              set -euo pipefail
+              cd $(workspaces.ws.path)
+              git config user.name "$(params.git_user_name)"
+              git config user.email "$(params.git_user_email)"
+              git add apps/minecraft/base/kustomization.yaml || true
+              if git diff --cached --quiet; then
+                echo "No changes to commit"
+                exit 0
+              fi
+              git commit -m "ci: update image tag for minecraft"
+              git push
+      workspaces:
+        - name: ws
+          workspace: shared
+        - name: creds
+          workspace: git-credentials

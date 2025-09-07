@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+patches:
+  - path: patch-deployment.yaml
+configMapGenerator:
+  - name: mc-config
+    behavior: merge
+    literals:
+      - MEMORY=3G
+      - MOTD=OpenShift MC (dev)
+generators: []

@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minecraft
+  namespace: mc-dev
+spec:
+  template:
+    metadata:
+      labels:
+        env: dev
+    spec:
+      containers:
+        - name: server
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "1Gi"
+            limits:
+              cpu: "1"
+              memory: "3Gi"
